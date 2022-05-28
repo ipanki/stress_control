@@ -1,0 +1,13 @@
+*.hex
+*.patch
+*.steps
+*.zip
+.*.swp
+*.mpy
+__pycache__
+cscope.out
+docs/build
+attic/
+wasp/boards/*/watch.py
+.idea
+.vscode

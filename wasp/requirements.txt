@@ -1,0 +1,11 @@
+cbor
+click
+cryptography
+numpy
+pexpect
+Pillow
+pydbus
+pygobject
+pyserial
+pysdl2
+pytest
