@@ -136,16 +136,13 @@ class HelloApp():
         self._scroll = wasp.widgets.ScrollIndicator()
         self.active_screen_index = 0
         self.active_screen = Screen.MAIN
-        # self._current_setting = self._settings[0]
-        self._checkbox = wasp.widgets.Checkbox(4, 54, 'Workouts')
+        self.is_workout_checkbox = wasp.widgets.Checkbox(4, 54, 'Workouts')
         self.is_stress = False
         self.bpm_graph_sec = []
         self.bpm_graph_min = []
         self.bpm_graph_hour = []
         self.step_delta = 10
-        self.tick_graph_counter = 0
-        self.stress_counter_sec = 10
-        self.stress_counter_min = 5
+        self.stress_level = StressLevel.GREEN
 
     def foreground(self):
         """Activate the application."""
@@ -187,11 +184,10 @@ class HelloApp():
 
     def touch(self, event):
         if self.active_screen == Screen.PULSE_SETTINGS:
-            if self.max_bpm.touch(event):
-                user_bpm = self.max_bpm.value
+            self.max_bpm.touch(event)
+
         elif self.active_screen == Screen.ACTIVITY_SETTINGS:
-            self._checkbox.touch(event)
-        # self._update()
+            self.is_workout_checkbox.touch(event)
 
     def swipe(self, event):
         if event[0] == wasp.EventType.UP:
@@ -208,7 +204,7 @@ class HelloApp():
 
     def _update_stress(self):
         step_difference = self.steps_count - self.prev_steps_count
-        high_pulse_is_workout = self._checkbox.state
+        high_pulse_is_workout = self.is_workout_checkbox.state
 
         stress_level = StressLevel.GREEN
 
@@ -221,59 +217,39 @@ class HelloApp():
         self.is_stress = stress_level == StressLevel.RED
 
     def _average_bpm(self, bpm_graph):
-        b = int(sum([value['bpm'] for value in bpm_graph]) / len(bpm_graph))
-        print(b, type(b))
-        return b
+        return int(sum([value['bpm'] for value in bpm_graph]) / len(bpm_graph))
 
-    def _average_stress_sec(self, bpm_graph):
-        list_bpm_graph = []
-        for data in bpm_graph:
-            list_bpm_graph.append(data['stress_level'])
-        c = Counter(list_bpm_graph)
+    def _average_stress(self, bpm_graph, delta=1):
+        c = Counter([data['stress_level'] for data in bpm_graph])
         red = c[StressLevel.RED]
         yellow = c[StressLevel.YELLOW]
-        green = c[StressLevel.GREEN]
 
-        if self.stress_counter_sec < red > yellow:
+        if red > delta:
             return StressLevel.RED
-        elif self.stress_counter_sec < yellow > green:
+        elif yellow > delta:
             return StressLevel.YELLOW
-        else:
-            return StressLevel.GREEN
 
-    def _average_stress_min(self, bpm_graph):
-        list_bpm_graph = []
-        for data in bpm_graph:
-            list_bpm_graph.append(data['stress_level'])
-        c = Counter(list_bpm_graph)
-        red = c[StressLevel.RED]
-        yellow = c[StressLevel.YELLOW]
-        green = c[StressLevel.GREEN]
-
-        if self.stress_counter_min < red > yellow:
-            return StressLevel.RED
-        elif self.stress_counter_min < yellow > green:
-            return StressLevel.YELLOW
-        else:
-            return StressLevel.GREEN
+        return StressLevel.GREEN
 
     def _update_graph(self):
         """Should be called every second"""
+        if self.bpm == 0:
+            return
+
         self.bpm_graph_sec.append({"bpm": self.bpm, "stress_level": self.stress_level})
 
         if len(self.bpm_graph_sec) % 60 == 0:
             self.bpm_graph_min.append({
                 "bpm": self._average_bpm(self.bpm_graph_sec[-60:]),
-                "stress_level": self._average_stress_sec(self.bpm_graph_sec[-60:])
+                "stress_level": self._average_stress(self.bpm_graph_sec[-60:], delta=10)
             })
+            self.bpm_graph_sec.clear()
 
             if len(self.bpm_graph_min) % 60 == 0:
                 self.bpm_graph_hour.append({
                     "bpm": self._average_bpm(self.bpm_graph_min[-60:]),
-                    "stress_level": self._average_stress_min(self.bpm_graph_min[-60:])
+                    "stress_level": self._average_stress(self.bpm_graph_min[-60:], delta=5)
                 })
-
-        print(self.max_bpm.value)
 
     def _draw_stress(self):
         draw = wasp.watch.drawable
@@ -293,19 +269,16 @@ class HelloApp():
         wake us up every 125ms so we implement sub-ticks using a regular
         timer to ensure we can read the sensor at 24Hz.
         """
-        # self.tick_graph_counter += 1
-        # if self.tick_graph_counter == 60:
-        #     self._draw_statistics()
-        #     self.tick_graph_counter = 0
 
         self.tick_counter += 1
         if self.tick_counter == 8:
             self.tick_counter = 0
             self._update_steps()
             self._update_stress()
-            self._update_graph()
+            # self._update_graph()
             self._draw()
-            
+
+        self._update_graph()
         t = machine.Timer(id=1, period=8000000)
         t.start()
         self._update_bpm()
@@ -329,17 +302,15 @@ class HelloApp():
                     0, 48, width=210)
         draw.blit(heart, 130, 46)
 
-    def _draw_graph_min(self):
+    def _draw_diagram_min(self):
         draw = wasp.watch.drawable
         x = 0
+        draw.string('Minute graph', 0, 6, width=240)
+        draw.string('{}'.format(self.max_bpm.value), 0, 215 - self.max_bpm.value)
+        draw.string('120', 0, 90)
         draw.line(0, 237, 237, 237, 2, 0xffff)
         draw.line(0, 240 - self.max_bpm.value, 237, 240 - self.max_bpm.value, 2, 0xffff)
         for bpm in self.bpm_graph_min[-60:]:
-            print(bpm)
-            # draw.line(10+x, 240 - bpm, 10+x, 237, 2, 0x07c0)
-            # x += 6
-            print(int(bpm['bpm']))
-            print(bpm['stress_level'])
             current_bpm = bpm['bpm']
             stress = bpm['stress_level']
             if stress == StressLevel.GREEN:
@@ -351,17 +322,15 @@ class HelloApp():
             draw.line(1 + x, 237 - current_bpm, 1 + x, 237, 2, color_graph)
             x += 4
 
-    def _draw_graph_hour(self):
+    def _draw_diagram_hour(self):
         draw = wasp.watch.drawable
         x = 0
+        draw.string('Hour graph', 0, 6, width=240)
+        draw.string('{}'.format(self.max_bpm.value), 0, 215 - self.max_bpm.value)
+        draw.string('120', 0, 90)
         draw.line(0, 237, 237, 237, 2, 0xffff)
         draw.line(0, 240 - self.max_bpm.value, 237, 240 - self.max_bpm.value, 2, 0xffff)
         for bpm in self.bpm_graph_hour[-60:]:
-            print(bpm)
-            # draw.line(10+x, 240 - bpm, 10+x, 237, 2, 0x07c0)
-            # x += 6
-            print(int(bpm['bpm']))
-            print(bpm['stress_level'])
             current_bpm = bpm['bpm']
             stress = bpm['stress_level']
             if stress == StressLevel.GREEN:
@@ -382,54 +351,53 @@ class HelloApp():
         """Draw the display from scratch."""
         draw = wasp.watch.drawable
         mute = wasp.watch.display.mute
-        # self._current_setting = self._settings[self._sett_index % len(self._settings)]
         self.active_screen = Screen(self.active_screen_index % len(Screen))
-        print(self.active_screen)
         mute(True)
         draw.fill()
-        # draw.set_color(wasp.system.theme('bright'))
-        # draw.set_font(fonts.sans24)
 
         if self.active_screen == Screen.MAIN:
             self._draw_bar()
             self._draw_stress()
             self._draw_steps()
             self._draw_bpm()
+
         elif self.active_screen == Screen.PULSE_SETTINGS:
-            draw.set_font(fonts.sans24)
-            draw.string('Pulse threshold', 0, 6, width=240)
-            s = 'If the pulse value is higher, stress will be determined'
-            chunks = draw.wrap(s, 240)
-            for i in range(len(chunks) - 1):
-                sub = s[chunks[i]:chunks[i + 1]].rstrip()
-                draw.string(sub, 10, 145 + 24 * i)
+            self._draw_pulse_settings()
 
-            prev_bpm = self.max_bpm.value
-            self.max_bpm.value = prev_bpm
-            self.max_bpm.draw()
-
-            print(self.max_bpm)
         elif self.active_screen == Screen.ACTIVITY_SETTINGS:
-            draw.set_font(fonts.sans24)
-            draw.string('Activity settings', 0, 6, width=240)
-            self._checkbox.draw()
-            activity_state = self._checkbox.state
+            self._draw_activity_settings()
 
-            s = 'If set, high pulse during active movements is treated as workouts'
-            chunks = draw.wrap(s, 240)
-            for i in range(len(chunks) - 1):
-                sub = s[chunks[i]:chunks[i + 1]].rstrip()
-                draw.string(sub, 5, 118 + 24 * i)
-            print(activity_state)
         elif self.active_screen == Screen.DIAGRAM_MIN:
-            draw.string('Minute graph', 0, 6, width=240)
-            draw.string('{}'.format(self.max_bpm.value), 0, 215 - self.max_bpm.value)
-            draw.string('120', 0, 90)
-            self._draw_graph_min()
+            self._draw_diagram_min()
+
         elif self.active_screen == Screen.DIAGRAM_HOUR:
-            draw.string('Hour graph', 0, 6, width=240)
-            self._draw_graph_hour()
+            self._draw_diagram_hour()
+
         mute(False)
+
+    def _draw_activity_settings(self):
+        draw = wasp.watch.drawable
+        draw.set_font(fonts.sans24)
+        draw.string('Activity settings', 0, 6, width=240)
+        self.is_workout_checkbox.draw()
+        s = 'If set, high pulse during active movements is treated as workouts'
+        chunks = draw.wrap(s, 240)
+        for i in range(len(chunks) - 1):
+            sub = s[chunks[i]:chunks[i + 1]].rstrip()
+            draw.string(sub, 5, 118 + 24 * i)
+
+    def _draw_pulse_settings(self):
+        draw = wasp.watch.drawable
+        draw.set_font(fonts.sans24)
+        draw.string('Pulse threshold', 0, 6, width=240)
+        s = 'If the pulse value is higher, stress will be determined'
+        chunks = draw.wrap(s, 240)
+        for i in range(len(chunks) - 1):
+            sub = s[chunks[i]:chunks[i + 1]].rstrip()
+            draw.string(sub, 10, 145 + 24 * i)
+        prev_bpm = self.max_bpm.value
+        self.max_bpm.value = prev_bpm
+        self.max_bpm.draw()
 
     def _draw_steps(self):
         draw = wasp.watch.drawable
