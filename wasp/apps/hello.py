@@ -118,7 +118,7 @@ class Screen(Enum):
     DIAGRAM_HOUR = 4
 
 
-class HelloApp():
+class StressApp():
     """Heart rate monitor application."""
     NAME = 'Heart'
 
@@ -147,7 +147,6 @@ class HelloApp():
     def foreground(self):
         """Activate the application."""
         wasp.watch.hrs.enable()
-
         # There is no delay after the enable because the redraw should
         # take long enough it is not needed
         draw = wasp.watch.drawable
@@ -166,8 +165,6 @@ class HelloApp():
         wasp.system.cancel_alarm(self._wake, self._reset)
         self._page = -1
         self._draw()
-        # wasp.system.request_event(wasp.EventMask.SWIPE_UPDOWN)
-        # wasp.system.request_tick(1000)
 
     def background(self):
         wasp.watch.hrs.disable()
@@ -256,6 +253,7 @@ class HelloApp():
         draw.set_font(fonts.sans24)
         if self.is_stress:
             wasp.watch.drawable.string("High stress.", 54, 24 + 150)
+            wasp.watch.vibrator.pulse()
         else:
             wasp.watch.drawable.string("Low stress.", 54, 24 + 150)
 
