@@ -17,7 +17,7 @@
 #         draw = wasp.watch.drawable
 #         draw.fill()
 #         draw.string(self.msg, 0, 108, width=240)
-
+import csv
 
 import wasp
 import machine
@@ -119,8 +119,7 @@ class Screen(Enum):
 
 
 class StressApp():
-    """Heart rate monitor application."""
-    NAME = 'Heart'
+    NAME = 'Stress'
 
     def __init__(self):
         self._debug = False
@@ -230,6 +229,7 @@ class StressApp():
 
     def _update_graph(self):
         """Should be called every second"""
+        field_names = ['bpm', 'stress_level']
         if self.bpm == 0:
             return
 
@@ -240,6 +240,10 @@ class StressApp():
                 "bpm": self._average_bpm(self.bpm_graph_sec[-60:]),
                 "stress_level": self._average_stress(self.bpm_graph_sec[-60:], delta=10)
             })
+            with open('Statistics.csv', 'w') as csvfile:
+                writer = csv.DictWriter(csvfile, fieldnames=field_names)
+                writer.writeheader()
+                writer.writerows(self.bpm_graph_min)
             self.bpm_graph_sec.clear()
 
             if len(self.bpm_graph_min) % 60 == 0:
@@ -273,10 +277,9 @@ class StressApp():
             self.tick_counter = 0
             self._update_steps()
             self._update_stress()
-            # self._update_graph()
+            self._update_graph()
             self._draw()
-
-        self._update_graph()
+        # self._update_graph()
         t = machine.Timer(id=1, period=8000000)
         t.start()
         self._update_bpm()
